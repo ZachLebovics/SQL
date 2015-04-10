@@ -1,0 +1,184 @@
+@echo $game_id||92, 96$;
+@echo $sn_id||1, 18, 22, 104$;
+@echo $ios||2, 8, 20, 21$;
+@echo $android||3, 13, 22, 23, 24$;
+@echo $timeline||60$;
+
+select ios_dau_tbl.dau_date, 
+ios_dau_tbl.DAU as ios_DAU, android_dau_tbl.DAU as android_DAU,
+ios_gamecreation_tbl.created_games/ios_dau_tbl.DAU as ios_games_per_DAU, android_gamecreation_tbl.created_games/android_dau_tbl.DAU as android_games_per_DAU, chesster_android_gamecreation_tbl.created_games/android_dau_tbl.DAU as chesster_android_games_per_DAU,
+ios_movesplayed_tbl.played_moves/ios_dau_tbl.DAU as ios_moves_per_DAU, android_movesplayed_tbl.played_moves/android_dau_tbl.DAU as android_moves_per_DAU, chesster_android_movesplayed_tbl.played_moves/android_dau_tbl.DAU as chesster_android_moves_per_DAU,
+ios_chats_tbl.chats_sent/ios_dau_tbl.DAU as ios_chats_per_DAU, android_chats_tbl.chats_sent/android_dau_tbl.DAU as android_chats_per_DAU, 
+ios_chatters_tbl.chatters/ios_dau_tbl.DAU as ios_chatters, android_chatters_tbl.chatters/android_dau_tbl.DAU as android_chatters
+from
+
+--DAU
+        (select dau_date, count(distinct user_uid) as DAU
+                from s_zt_dau
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($ios$)
+                and dau_date between (current_date - $timeline$) and (current_date - 1)
+                group by 1
+                order by 1,2) as ios_dau_tbl
+left join
+        (select dau_date, count(distinct user_uid) as DAU
+                from s_zt_dau
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($android$)
+                and dau_date between (current_date - $timeline$) and (current_date - 1)
+                group by 1
+                order by 1,2) as android_dau_tbl
+on
+        ios_dau_tbl.dau_date = android_dau_tbl.dau_date
+
+--GAMES/DAU (chesster and non for android)
+left join
+        (select counter_date, count(*) as created_games
+                from s_zt_count
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($ios$)
+                and counter_date between (current_date - $timeline$) and (current_date - 1)
+                and counter = 'game_creation'
+                and phylum = 'succeeded'
+                group by 1
+                order by 1,2) as ios_gamecreation_tbl
+on
+        ios_dau_tbl.dau_date = ios_gamecreation_tbl.counter_date
+left join
+        (select counter_date, count(*) as created_games
+                from s_zt_count
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($android$)
+                and counter_date between (current_date - $timeline$) and (current_date - 1)
+                and counter = 'game_creation'
+                and phylum = 'succeeded'
+                and milestone not like 'c%'
+                group by 1
+                order by 1,2) as android_gamecreation_tbl
+
+on
+        ios_dau_tbl.dau_date = android_gamecreation_tbl.counter_date
+left join
+        (select counter_date, count(*) as created_games
+                from s_zt_count
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($android$)
+                and counter_date between (current_date - $timeline$) and (current_date - 1)
+                and counter = 'game_creation'
+                and phylum = 'succeeded'
+                and milestone like 'c%'
+                group by 1
+                order by 1,2) as chesster_android_gamecreation_tbl
+
+on
+        ios_dau_tbl.dau_date = chesster_android_gamecreation_tbl.counter_date
+--MOVES/DAU
+left join
+        (select counter_date, count(*) as played_moves
+                from s_zt_count
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($ios$)
+                and counter_date between (current_date - $timeline$) and (current_date - 1)
+                and counter = 'game_actions'
+                and kingdom in ('play_move','played')
+                group by 1
+                order by 1,2) as ios_movesplayed_tbl
+on
+        ios_dau_tbl.dau_date = ios_movesplayed_tbl.counter_date
+left join
+        (select counter_date, count(*) as played_moves
+                from s_zt_count
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($android$)
+                and counter_date between (current_date - $timeline$) and (current_date - 1)
+                and counter = 'game_actions'
+                and kingdom in ('play_move','played')
+                and milestone not like 'c%'
+                group by 1
+                order by 1,2) as android_movesplayed_tbl
+on
+        ios_dau_tbl.dau_date = android_movesplayed_tbl.counter_date
+left join
+        (select counter_date, count(*) as played_moves
+                from s_zt_count
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($android$)
+                and counter_date between (current_date - $timeline$) and (current_date - 1)
+                and counter = 'game_actions'
+                and kingdom in ('play_move','played')
+                and milestone like 'c%'
+                group by 1
+                order by 1,2) as chesster_android_movesplayed_tbl
+on
+        ios_dau_tbl.dau_date = chesster_android_movesplayed_tbl.counter_date
+
+--CHATS/DAU
+left join
+        (select counter_date, count(*) as chats_sent
+                from s_zt_count
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($ios$)
+                and counter_date between (current_date - $timeline$) and (current_date - 1)
+                and counter = 'game_actions'
+                and kingdom = 'chatted'
+                group by 1
+                order by 1,2) as ios_chats_tbl
+on
+        ios_dau_tbl.dau_date = ios_chats_tbl.counter_date
+left join
+        (select counter_date, count(*) as chats_sent
+                from s_zt_count
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($android$)
+                and counter_date between (current_date - $timeline$) and (current_date - 1)
+                and counter = 'game_actions'
+                and kingdom = 'chatted'
+                group by 1
+                order by 1,2) as android_chats_tbl
+on
+        ios_dau_tbl.dau_date = android_chats_tbl.counter_date
+
+--CHATTERS/DAU
+left join
+        (select counter_date, count(distinct user_uid) as chatters
+                from s_zt_count
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($ios$)
+                and counter_date between (current_date - $timeline$) and (current_date - 1)
+                and counter = 'game_actions'
+                and kingdom = 'chatted'
+                group by 1
+                order by 1,2) as ios_chatters_tbl
+on
+        ios_dau_tbl.dau_date = ios_chatters_tbl.counter_date
+left join
+        (select counter_date, count(distinct user_uid) as chatters
+                from s_zt_count
+                where game_id in ($game_id$)
+                and sn_id in ($sn_id$)
+                and client_id in ($android$)
+                and counter_date between (current_date - $timeline$) and (current_date - 1)
+                and counter = 'game_actions'
+                and kingdom = 'chatted'
+                group by 1
+                order by 1,2) as android_chatters_tbl
+on
+        ios_dau_tbl.dau_date = android_chatters_tbl.counter_date    
+
+        order by dau_date asc
+;
+
+
+
+
