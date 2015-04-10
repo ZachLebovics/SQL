@@ -1,0 +1,30 @@
+commit;
+
+insert /*+direct*/ into etl_temp.tmp_skb
+        (user_uid, metric2, date, metric3, metric)
+select user_uid, counter, counter_date+counter_time, milestone, 'game_start'
+from s_zt_count
+where game_id = 92 and client_id = 2
+and counter = 'game_creation'
+and counter_date >= current_date - 30;
+
+insert /*+direct*/ into etl_temp.tmp_skb
+        (user_uid, metric2, date, metric3, metric)
+select user_uid, counter, counter_date+counter_time, milestone, 'game_end'
+from s_zt_count
+where game_id = 92 and client_id = 2
+and counter = 'game_completion'
+and counter_date >= current_date - 30;
+
+@set maxrows 999999999;
+
+@export on;
+@export set filename="/Users/zlebovics/Desktop/chessgametime.csv" format="csv" CsvColumnDelimiter=",";
+
+select game_start.user_uid, game_start.date, game_end.date
+from etl_temp.tmp_skb as game_start
+left join etl_temp.tmp_skb as game_end
+        on game_start.metric3 = game_end.metric3
+        and game_end.metric = 'game_end'
+where game_start.metric = 'game_start'
+group by 1,2,3
